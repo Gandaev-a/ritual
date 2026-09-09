@@ -1,0 +1,8 @@
+raw/
+cut/
+clean/
+web/
+pages/
+imgs/
+__pycache__/
+*.pyc
