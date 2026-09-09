@@ -1,0 +1,52 @@
+name: Публикация сайта на GitHub Pages
+
+on:
+  push:
+    branches: [claude/vibrant-allen-dora5i]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Собрать index.html из src/
+        run: python3 tools/build.py
+
+      # На сайт уходит только готовая страница.
+      # Прайс (price/) и исходники (src/, tools/) остаются в репозитории
+      # и по прямым ссылкам недоступны.
+      - name: Подготовить публикуемую папку
+        run: |
+          mkdir -p public
+          cp index.html public/
+          touch public/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
