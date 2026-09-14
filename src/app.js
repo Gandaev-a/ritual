@@ -41,18 +41,27 @@ const FLOORS = [
   { id:'f9', label:'Гранитная крошка', fill:'#6B7175', line:'#5C6265', speck:true }
 ];
 
-/* ---------- ограждения --------------------------------------------------- */
-const FENCES = [
-  { id:'n0', label:'Без ограды', type:'none' },
-  { id:'n1', label:'Гранитный парапет', type:'parapet', h:215, th:115, dark:'#1A1E21', top:'#333A3E' },
-  { id:'n2', label:'Сварная', type:'bars', h:520, step:250, rails:[195,495], w:4.2, col:'#191D20', curb:95 },
-  { id:'n3', label:'Кованая с пиками', type:'bars', h:660, step:215, rails:[205,545], w:4,
-    col:'#15181A', curb:95, tips:true, ring:true },
-  { id:'n4', label:'Нержавеющая сталь', type:'bars', h:580, step:300, rails:[190,560], w:4.6,
-    col:'#9FA7AB', gloss:'#E8EDEE', curb:95, curbTop:'#C9CDCE', curbDark:'#8C9295' },
-  { id:'n5', label:'Литая чугунная', type:'bars', h:700, step:185, rails:[210,575,665], w:4.4,
-    col:'#111416', curb:115, tips:true }
+/* ---------- ограждения: каталог 2025 ---------------------------------------
+   Рендеры и характеристики сняты со страниц каталога (tools/extract_fences.py),
+   цвета покрытий измерены с фирменных плашек.                              */
+const COATINGS = [
+  { id:'c1', label:'медный антик',   lo:'#240806', hi:'#7C3028', dot:'#672821' },
+  { id:'c2', label:'чёрное серебро', lo:'#191919', hi:'#7A7A7A', dot:'#616161' },
+  { id:'c3', label:'чёрный матовый', lo:'#0E0E0E', hi:'#3E3E3E', dot:'#323232' },
+  { id:'c4', label:'зелёный антик',  lo:'#122019', hi:'#5A8873', dot:'#486E5C' },
+  { id:'c5', label:'золотой антик',  lo:'#2A2314', hi:'#B5A074', dot:'#97855F' }
 ];
+const FENCES = [{ id:'n0', n:0 }, ...FENCE_DATA];
+
+const hex2rgb = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16) / 255);
+function coatFilter(c) {
+  const lo = hex2rgb(c.lo), hi = hex2rgb(c.hi);
+  const ch = ['R','G','B'].map((k,i) =>
+    `<feFunc${k} type="table" tableValues="${lo[i].toFixed(3)} ${hi[i].toFixed(3)}"/>`).join('');
+  return '<filter id="coat" color-interpolation-filters="sRGB">' +
+         '<feColorMatrix type="saturate" values="0"/>' +
+         `<feComponentTransfer>${ch}</feComponentTransfer></filter>`;
+}
 
 /* ---------- малые формы -------------------------------------------------- */
 const EXTRAS = [
@@ -62,8 +71,8 @@ const EXTRAS = [
 const EXTRA_STONES = ['black', 'dark', 'grey', 'soft', 'white'];
 
 /* ---------- покрытие: отрисовка ------------------------------------------ */
-const INSET = 70;                       // плита не доходит до ограды
 function drawFloor(W, L, f) {
+  const INSET = Math.min(W, L) * 0.17;   // плита ложится внутрь ограды
   const s = f.stone ? STONE[f.stone] : null;
   const fill = s ? s.top : f.fill, seam = s ? s.seam : f.line;
   const i0 = INSET, i1W = W - INSET, i1L = L - INSET;
@@ -91,37 +100,6 @@ function drawFloor(W, L, f) {
     out += `<g fill="#878D90" opacity=".8">${g}</g>`;
   }
   return out + poly(c, 'none', ' stroke="#4A5053" stroke-width="1.1"');
-}
-
-/* ---------- ограда: один прогон ------------------------------------------ */
-function fenceRun(ax, az, bx, bz, f, cx, cz) {
-  if (f.type === 'none') return '';
-  const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
-  let nx = -dz / len, nz = dx / len;
-  if ((cx - ax) * nx + (cz - az) * nz < 0) { nx = -nx; nz = -nz; }   // нормаль внутрь
-  const band = (h0, h1, th, colFront, colTop) =>
-    poly([P(ax,h1,az), P(bx,h1,bz), P(bx,h0,bz), P(ax,h0,az)], colFront) +
-    poly([P(ax,h1,az), P(bx,h1,bz), P(bx+nx*th,h1,bz+nz*th), P(ax+nx*th,h1,az+nz*th)], colTop);
-
-  if (f.type === 'parapet') return band(0, f.h, f.th, f.dark, f.top);
-
-  const base = f.curb || 0;
-  let out = base ? band(0, base, 110, f.curbDark || '#202528', f.curbTop || '#3B4247') : '';
-  const n = Math.max(2, Math.round(len / f.step));
-  for (const y of f.rails) out += line(P(ax,y,az), P(bx,y,bz), f.w * 0.8, f.col);
-  if (f.gloss) for (const y of f.rails) out += line(P(ax,y+3,az), P(bx,y+3,bz), f.w * 0.28, f.gloss);
-  for (let i = 0; i <= n; i++) {
-    const t = i / n, x = ax + dx * t, z = az + dz * t, corner = (i === 0 || i === n);
-    const h = corner ? f.h + 80 : f.h;
-    out += line(P(x,base,z), P(x,h,z), corner ? f.w * 1.7 : f.w, f.col);
-    if (f.gloss) out += line(P(x-16,base,z), P(x-16,h,z), f.w * 0.3, f.gloss);
-    if (f.tips) out += line(P(x,h,z), P(x, h + (corner ? 110 : 90), z), f.w * 1.35, f.col);
-    if (f.ring && i < n && i % 2 === 0) {
-      const c = P(x + dx/n/2, (base + f.rails[1]) / 2, z + dz/n/2);
-      out += `<ellipse cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" rx="${(f.step*K.x*0.13).toFixed(1)}" ry="${(f.h*K.y*0.11).toFixed(1)}" fill="none" stroke="${f.col}" stroke-width="${f.w*0.7}"/>`;
-    }
-  }
-  return out;
 }
 
 /* ---------- малые формы: отрисовка --------------------------------------- */
@@ -153,7 +131,7 @@ function drawVase(x, z, st) {
 }
 
 /* ---------- сцена -------------------------------------------------------- */
-function buildScene(model, plot, floor, fence, extras, extraStone) {
+function buildScene(model, plot, floor, fence, extras, extraStone, coat) {
   const W = plot.w, L = plot.l, xc = W / 2;
   const st = STONE[extraStone];
 
@@ -180,12 +158,29 @@ function buildScene(model, plot, floor, fence, extras, extraStone) {
                       : { top:'#4A5053', side:'#31373A', seam:'#3C4245' };
   const bed = slab(bx, bz, BW, BL, BH, BH, bedStone);
 
-  const far  = fenceRun(0,L,W,L,fence,xc,L/2)
-             + fenceRun(W,zFront,W,L,fence,xc,L/2) + fenceRun(0,zFront,0,L,fence,xc,L/2);
-  const near = fenceRun(W,0,W,zFront,fence,xc,L/2) + fenceRun(0,0,0,zFront,fence,xc,L/2)
-             + fenceRun(W,0,0,0,fence,xc,L/2);
+  /* Ограда — рендер из каталога: кладётся на габарит участка, ближняя половина
+     повторяется поверх памятника, чтобы он стоял внутри, а не перед оградой. */
+  let far = '', near = '', fbox = null;
+  if (fence.n) {
+    const pp = [P(0,0,0), P(W,0,0), P(W,0,L), P(0,0,L)];
+    const pxs = pp.map(q => q[0]), pys = pp.map(q => q[1]);
+    const px0 = Math.min(...pxs), px1 = Math.max(...pxs), py1 = Math.max(...pys);
+    /* внутренняя площадка занимает по высоте кадра примерно от 36 % до 95 %:
+       растягиваем рендер так, чтобы она совпала с габаритом участка */
+    const py0 = Math.min(...pys);
+    const IN_TOP = 0.36, IN_BOT = 0.95;
+    const fw = (px1 - px0) * 1.12;
+    const fh = (py1 - py0) / (IN_BOT - IN_TOP);
+    const fx = px0 - (fw - (px1 - px0)) / 2;
+    const fy = py1 + 14 - fh * IN_BOT;
+    const img = `<image href="${fence.img}" x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" filter="url(#coat)"/>`;
+    const cut = fy + fh * 0.66;
+    far  = img;
+    near = `<clipPath id="fclip"><rect x="${fx.toFixed(1)}" y="${cut.toFixed(1)}" width="${fw.toFixed(1)}" height="${(fh * 0.34).toFixed(1)}"/></clipPath><g clip-path="url(#fclip)">${img}</g>`;
+    fbox = [fx, fy, fw, fh];
+  }
 
-  const shadow = `<ellipse cx="${(anchor[0] + pngW * 0.1).toFixed(1)}" cy="${(anchor[1] + 2).toFixed(1)}" rx="${(pngW * 0.44).toFixed(1)}" ry="${(pngW * 0.07).toFixed(1)}" fill="#0B0C0D" opacity=".2"/>`;
+  const shadow = `<ellipse cx="${(anchor[0] + pngW * 0.1).toFixed(1)}" cy="${(anchor[1] + 2).toFixed(1)}" rx="${(pngW * 0.34).toFixed(1)}" ry="${(pngW * 0.05).toFixed(1)}" fill="#0B0C0D" opacity=".18"/>`;
 
   let props = '';
   if (extras.vases) {
@@ -199,27 +194,28 @@ function buildScene(model, plot, floor, fence, extras, extraStone) {
     benchBox = [bxx, bzz, 1160, 1260];
   }
 
-  const plate = plot.war ? `<text x="${P(0,0,L)[0].toFixed(1)}" y="${(P(0,0,L)[1] - 14).toFixed(1)}" fill="#8C9498" font-family="IBM Plex Mono, monospace" font-size="13" text-anchor="end">воинский сектор</text>` : '';
+  const plate = plot.war ? `<text x="${P(W,0,0)[0].toFixed(1)}" y="${(P(W,0,0)[1] + 26).toFixed(1)}" fill="#7C8387" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1.4">ВОИНСКИЙ СЕКТОР</text>` : '';
 
-  const body = drawFloor(W, L, floor) + far + shadow + bed
+  const body = coatFilter(coat) + drawFloor(W, L, floor) + far + shadow + bed
     + `<image href="${model.img}" x="${imgX.toFixed(1)}" y="${imgY.toFixed(1)}" width="${pngW.toFixed(1)}" height="${pngH.toFixed(1)}"/>`
     + props + near + plate;
 
   /* viewBox по всем нарисованным объектам */
-  const hi = (fence.h || 0) + 150;
   const cor = [];
-  for (const x of [0, W]) for (const z of [0, L]) for (const y of [0, hi]) cor.push(P(x,y,z));
+  for (const x of [0, W]) for (const z of [0, L]) for (const y of [0, 900]) cor.push(P(x,y,z));
+  if (fbox) cor.push([fbox[0], fbox[1]], [fbox[0] + fbox[2], fbox[1] + fbox[3]]);
   cor.push([imgX, imgY], [imgX + pngW, imgY + pngH]);
   if (benchBox) { const [a,b,c,d] = benchBox; cor.push(P(a,780,b), P(a+c,0,b+d)); }
   const xs = cor.map(p => p[0]), ys = cor.map(p => p[1]), pad = 30;
   const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
   const vw = Math.max(...xs) - x0 + pad, vh = Math.max(...ys) - y0 + pad;
 
-  return `<svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" role="img" aria-label="Участок ${plot.note}: комплект № ${model.code}, ${fence.label}, ${floor.label}">${body}</svg>`;
+  const fenceName = fence.n ? ("ограда " + fence.n) : "без ограды";
+  return `<svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" role="img" aria-label="Участок ${plot.note}: комплект ${model.code}, ${fenceName}, ${floor.label}">${body}</svg>`;
 }
 
 /* ---------- состояние ---------------------------------------------------- */
-const S = { model: MODELS[0], plot: PLOTS[0], floor: FLOORS[0], fence: FENCES[2],
+const S = { model: MODELS[0], plot: PLOTS[0], floor: FLOORS[0], fence: FENCES[1], coat: COATINGS[2],
             extras: { bench:false, vases:false }, extraStone:'black', shape:'all' };
 const $  = id => document.getElementById(id);
 const mm  = a => a ? a.join(' × ') : '—';
@@ -235,10 +231,12 @@ function chipRow(host, items, key) {
 }
 
 function render() {
-  $('scene').innerHTML = buildScene(S.model, S.plot, S.floor, S.fence, S.extras, S.extraStone);
+  $('scene').innerHTML = buildScene(S.model, S.plot, S.floor, S.fence, S.extras, S.extraStone, S.coat);
   const add = [S.extras.bench && 'скамейка со столом', S.extras.vases && 'вазы'].filter(Boolean);
-  $('sceneNote').textContent = [S.fence.label.toLowerCase(), S.floor.label.toLowerCase(),
-    S.plot.note, ...add].join(' · ');
+  const fname = S.fence.n ? `ограда № ${S.fence.n}, ${S.coat.label}` : 'без ограды';
+  $('sceneNote').textContent = [fname, S.floor.label.toLowerCase(), S.plot.note, ...add].join(' · ');
+  $('oFence').textContent = S.fence.n ? '№ ' + S.fence.n : '—';
+  $('coatRow').hidden = !S.fence.n;
   $('oCode').textContent  = '№ ' + S.model.code;
   $('oShape').textContent = S.model.fig ? 'фигурная' : 'прямая';
   $('oStela').textContent = mm(S.model.stela);
@@ -248,9 +246,11 @@ function render() {
   $('oPrice').textContent = rub(S.model.price);
   for (const b of document.querySelectorAll('#minis .mini'))
     b.setAttribute('aria-pressed', b.dataset.id === S.model.id);
-  for (const [host, items, key] of [['fences',FENCES,'fence'],['floors',FLOORS,'floor'],['plots',PLOTS,'plot']])
+  for (const [host, items, key] of [['floors',FLOORS,'floor'],['plots',PLOTS,'plot'],['coats',COATINGS,'coat']])
     for (const b of $(host).querySelectorAll('.chip'))
       b.setAttribute('aria-pressed', b.dataset.id === S[key].id);
+  for (const b of $('fences').querySelectorAll('.fmini'))
+    b.setAttribute('aria-pressed', b.dataset.id === S.fence.id);
   for (const b of $('extras').querySelectorAll('.chip'))
     b.setAttribute('aria-pressed', !!S.extras[b.dataset.id]);
   $('stoneRow').hidden = !(S.extras.bench || S.extras.vases);
@@ -275,9 +275,18 @@ $('shapeTabs').onclick = e => {
     c.setAttribute('aria-pressed', c.dataset.shape === S.shape);
   drawMinis(); render();
 };
-chipRow($('fences'), FENCES, 'fence');
+chipRow($('coats'), COATINGS, 'coat');
 chipRow($('floors'), FLOORS, 'floor');
 chipRow($('plots'),  PLOTS,  'plot');
+
+/* ограждения: плитка рендеров из каталога */
+$('fences').innerHTML = FENCES.map(f => f.n
+  ? `<button class="mini fmini" data-id="${f.id}" aria-pressed="${f.id === S.fence.id}" title="Ограда № ${f.n} — столб ${f.post}, рисунок ${f.art} см"><span>${f.n}</span><img src="${f.img}" alt="Ограда № ${f.n}" loading="lazy"></button>`
+  : `<button class="mini fmini fnone" data-id="${f.id}" aria-pressed="${f.id === S.fence.id}">без<br>ограды</button>`).join('');
+$('fences').onclick = e => {
+  const b = e.target.closest('.fmini'); if (!b) return;
+  S.fence = FENCES.find(f => f.id === b.dataset.id); render();
+};
 
 $('extras').innerHTML = EXTRAS.map(x =>
   `<button class="chip" data-id="${x.id}" aria-pressed="false">${x.label}</button>`).join('');
@@ -348,3 +357,51 @@ $('grid').onclick = e => {
 drawMinis();
 drawCatalogue();
 render();
+
+/* ---------- каталог ограждений ------------------------------------------- */
+let fenceFilter = 'all';
+const FENCE_FILTERS = [
+  { id:'all',   label:'Все 36',        test:() => true },
+  { id:'forge', label:'С ковкой',      test:f => f.forged },
+  { id:'plain', label:'Без ковки',     test:f => !f.forged },
+  { id:'p20',   label:'Столб 20×20',   test:f => f.post === '20×20' },
+  { id:'p30',   label:'Столб 30×30',   test:f => f.post === '30×30' },
+  { id:'p40',   label:'Столб 40×40',   test:f => f.post === '40×40' },
+  { id:'p60',   label:'Столб 60×60',   test:f => f.post === '60×60' }
+];
+function drawFenceCat() {
+  const f = FENCE_FILTERS.find(x => x.id === fenceFilter);
+  const list = FENCE_DATA.filter(f.test);
+  $('fCount').textContent = list.length + ' из 36';
+  $('fgrid').innerHTML = list.map(o => `
+    <article class="fcard">
+      <div class="fcard-stage"><span class="card-code">Ограда № ${o.n}</span>
+        <img src="${o.img}" alt="Ограда № ${o.n}" loading="lazy"></div>
+      <div class="fcard-body">
+        <div class="card-dims">
+          <i>столб</i>труба ${o.post} мм<br>
+          <i>пояс</i>труба ${o.belt} мм<br>
+          <i>рисунок</i>${o.art} см · ${o.mat}
+        </div>
+        <div class="swatches">${COATINGS.map(c =>
+          `<span class="sw" title="${c.label}" style="background:${c.dot}"></span>`).join('')}</div>
+        <button class="card-try" data-fid="${o.id}">в конфигуратор →</button>
+      </div>
+    </article>`).join('');
+}
+$('ffilters').innerHTML = '<span class="eyebrow">Ковка и столб</span>' + FENCE_FILTERS.map(f =>
+  `<button class="chip" data-f="${f.id}" aria-pressed="${f.id === fenceFilter}">${f.label}</button>`).join('');
+$('ffilters').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  fenceFilter = b.dataset.f;
+  for (const c of $('ffilters').querySelectorAll('.chip'))
+    c.setAttribute('aria-pressed', c.dataset.f === fenceFilter);
+  drawFenceCat();
+};
+$('fgrid').onclick = e => {
+  const b = e.target.closest('.card-try'); if (!b) return;
+  S.fence = FENCES.find(f => f.id === b.dataset.fid);
+  render();
+  $('configurator').scrollIntoView({ behavior:'smooth', block:'start' });
+};
+drawFenceCat();

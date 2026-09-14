@@ -135,6 +135,22 @@ section{padding:70px 0}
 .card-price{font-family:var(--mono);font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
 .card-try{font-size:11.5px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:1px}
 .card-try:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.ghead-link{font-size:11.5px;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
+.ghead-link:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.fmins{grid-template-columns:repeat(3,1fr);max-height:230px}
+.fmini{aspect-ratio:4/3;align-items:center}
+.fnone{font-family:var(--mono);font-size:10px;color:#5D6467;line-height:1.4;text-align:center}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.fcard{background:var(--ground);display:flex;flex-direction:column}
+.fcard-stage{background:linear-gradient(170deg,#E7E8E8,#FAFAFA 65%,#E9EAEA);
+  aspect-ratio:3/2;display:flex;align-items:center;justify-content:center;padding:14px;position:relative}
+.fcard-stage img{max-width:96%;max-height:96%;object-fit:contain}
+.fcard-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.swatches{display:flex;gap:5px}
+.sw{width:20px;height:14px;border:1px solid #0006;display:block}
+.foot-note{margin-top:18px;font-size:12.5px;color:var(--muted);line-height:1.6;max-width:74ch}
+@media (max-width:1080px){.fgrid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:680px){.fgrid{grid-template-columns:1fr}}
 @media (max-width:1080px){.grid{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}}
 
@@ -185,8 +201,8 @@ footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);f
       </span>
     </a>
     <a class="navlink" href="#configurator">Конфигуратор</a>
-    <a class="navlink" href="#catalogue">Каталог</a>
-    <a class="navlink" href="#included">Комплектация</a>
+    <a class="navlink" href="#catalogue">Памятники</a>
+    <a class="navlink" href="#fencecat">Ограждения</a>
     <a class="navlink" href="#contacts">Контакты</a>
     <a class="tel" href="tel:+79964280133">+7 996 428-01-33</a>
   </div>
@@ -239,8 +255,15 @@ footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);f
           <div class="minis" id="minis" role="group" aria-label="Выбор модели памятника"></div>
         </div>
         <div class="pgroup">
-          <span class="eyebrow">Ограждение</span>
-          <div class="chips" id="fences" role="group" aria-label="Выбор ограждения"></div>
+          <div class="ghead">
+            <span class="eyebrow">Ограждение — каталог 2025</span>
+            <a class="ghead-link" href="#fencecat">все 36 →</a>
+          </div>
+          <div class="minis fmins" id="fences" role="group" aria-label="Выбор ограждения"></div>
+          <div id="coatRow" style="margin-top:12px">
+            <span class="eyebrow" style="margin-bottom:9px">Покрытие</span>
+            <div class="chips" id="coats" role="group" aria-label="Цвет покрытия ограды"></div>
+          </div>
         </div>
         <div class="pgroup">
           <span class="eyebrow">Плита на могиле</span>
@@ -267,6 +290,7 @@ footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);f
             <div class="spec"><dt>Тумба</dt><dd id="oTumba">—</dd></div>
             <div class="spec"><dt>Цветник</dt><dd id="oCvet">—</dd></div>
             <div class="spec"><dt>Участок</dt><dd id="oPlot">—</dd></div>
+            <div class="spec"><dt>Ограда</dt><dd id="oFence">—</dd></div>
           </dl>
           <div class="price-row">
             <span class="price" id="oPrice">—</span>
@@ -297,6 +321,24 @@ footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);f
     </div>
     <div class="filters" id="filters"></div>
     <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="fencecat">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><span class="eyebrow">Каталог 2025</span>
+        <h2 style="margin-top:12px">Ритуальные ограждения</h2></div>
+      <p>36 моделей, размер стандартный 250 × 200 см, столб H = 100 см, изготовление по размеру
+         заказчика. Полимерно-порошковое покрытие в пяти цветах. Показано <span id="fCount">36 из 36</span>.</p>
+    </div>
+    <div class="filters" id="ffilters"></div>
+    <div class="fgrid" id="fgrid"></div>
+    <p class="foot-note">Калитка открывается наружу и вовнутрь, универсальная, располагается с любой
+       стороны. Возможно исполнение на винтовой ноге. Цены на ограждения в прайс не входят —
+       уточняйте при заказе.</p>
   </div>
 </section>
 
@@ -402,5 +444,6 @@ footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);f
 
 <script>
 const MODELS = /*__DATA__*/;
+const FENCE_DATA = /*__FENCES__*/;
 /*__APP__*/
 </script>
