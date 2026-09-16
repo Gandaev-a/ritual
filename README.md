@@ -30,8 +30,13 @@
 ## Сборка
 
 ```bash
-python3 tools/build.py          # src/* -> index.html
+python3 tools/build.py          # src/* -> index.html + artifact.html
 ```
+
+`index.html` — полный документ для GitHub Pages: с `charset`, `viewport` и описанием.
+`artifact.html` — тот же контент без обёртки, для публикации артефактом (скелет
+страницы там добавляется на стороне сервиса). Без `viewport` телефон рендерит
+страницу в виртуальном окне 980 px и медиазапросы не срабатывают.
 
 Обновить данные из нового PDF:
 

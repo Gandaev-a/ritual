@@ -6,3 +6,4 @@ pages/
 imgs/
 __pycache__/
 *.pyc
+artifact.html
