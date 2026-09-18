@@ -1,21 +1,10 @@
-/* ---------- проекция ------------------------------------------------------
-   Оси измерены по рендерам прайса: стела у изголовья, цветник идёт к зрителю.
-   x — поперёк участка, y — высота, z — вглубь. Все размеры сцены в мм.     */
-const AX = { x: -0.9885, y: -0.1517 };
-const AZ = { x:  0.9537, y: -0.3007 };
-const K  = { x: 0.1882, y: 0.205, z: 0.0918 };   // px на мм
-const NORM_PX_MM = 0.40;                         // масштаб нормализованных рендеров
-const BASE_PAD   = 14;                           // отступ базовой линии на холсте
-
-const P = (x, y, z) => [ x * K.x * AX.x + z * K.z * AZ.x,
-                         x * K.x * AX.y + z * K.z * AZ.y - y * K.y ];
-const pt   = p => p[0].toFixed(1) + ',' + p[1].toFixed(1);
-const poly = (pts, fill, extra) =>
-  `<polygon points="${pts.map(pt).join(' ')}" fill="${fill}"${extra || ''}/>`;
-const line = (a, b, w, col) =>
-  `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
-
-/* ---------- участки ------------------------------------------------------ */
+/* ---------- участки ------------------------------------------------------
+   Схема участка теперь рисуется строго по реальным миллиметрам (вид сверху),
+   без фотомонтажа: раньше памятник, ограда и мебель были фотографиями с
+   РАЗНЫХ съёмок (свои камеры, свои углы — до 22° расхождения между источниками,
+   см. README), и никакая перестановка координат не могла свести их в одну
+   сцену. План читает размеры из прайса и каталога, фото показаны отдельно,
+   в галерее «ваш комплект» ниже плана — каждое ровно и без искажений.        */
 const PLOTS = [
   { id:'p1', label:'2,5 × 2 м',       l:2500, w:2000, note:'2,5 × 2 м — одно место' },
   { id:'p2', label:'2,5 × 3 м',       l:2500, w:3000, note:'2,5 × 3 м — два места' },
@@ -24,11 +13,11 @@ const PLOTS = [
 
 /* ---------- плита на могиле ---------------------------------------------- */
 const STONE = {
-  grey:  { label:'серый',         top:'#8B9093', side:'#6E7376', seam:'#757A7D' },
-  white: { label:'белый',         top:'#D6D8D7', side:'#B4B7B6', seam:'#C2C4C3' },
-  black: { label:'чёрный',        top:'#16191B', side:'#0D0F10', seam:'#23272A' },
-  dark:  { label:'тёмно-серый',   top:'#474D50', side:'#343A3D', seam:'#565C5F' },
-  soft:  { label:'светло-чёрный', top:'#2A2F33', side:'#1C2023', seam:'#3A4044' }
+  grey:  { label:'серый',         top:'#8B9093', line:'#757A7D' },
+  white: { label:'белый',         top:'#D6D8D7', line:'#C2C4C3' },
+  black: { label:'чёрный',        top:'#16191B', line:'#3A3F42' },
+  dark:  { label:'тёмно-серый',   top:'#474D50', line:'#5A6064' },
+  soft:  { label:'светло-чёрный', top:'#2A2F33', line:'#40464A' }
 };
 const FLOORS = [
   { id:'g1', label:'Гранит серый',         stone:'grey',  grid:600 },
@@ -36,164 +25,166 @@ const FLOORS = [
   { id:'g3', label:'Гранит светло-чёрный', stone:'soft',  grid:600 },
   { id:'g4', label:'Гранит чёрный',        stone:'black', grid:600 },
   { id:'g5', label:'Гранит белый',         stone:'white', grid:600 },
-  { id:'f6', label:'Керамогранит',         fill:'#3E4447', line:'#2B3033', grid:600 },
+  { id:'f6', label:'Керамогранит',         fill:'#3E4447', line:'#565C60', grid:600 },
   { id:'f7', label:'Тротуарная плитка',    fill:'#8F9391', line:'#797D7B', grid:300 },
-  { id:'f8', label:'Искусственный газон',  fill:'#4C7342', line:'#446A3B', grass:true },
-  { id:'f9', label:'Гранитная крошка',     fill:'#6B7175', line:'#5C6265', speck:true }
+  { id:'f8', label:'Искусственный газон',  fill:'#4C7342', line:'#5B8A4F', grass:true },
+  { id:'f9', label:'Гранитная крошка',     fill:'#6B7175', line:'#878D90', speck:true }
 ];
 
 /* ---------- ограждения: каталог 2025 -------------------------------------
-   Цвета покрытий измерены с фирменных плашек каталога.                     */
+   Цвета покрытий измерены с фирменных плашек каталога — используются как
+   маркер на плане и в галерее, не для перекраски фотографии.               */
 const COATINGS = [
-  { id:'c1', label:'медный антик',   lo:'#240806', hi:'#7C3028', dot:'#672821' },
-  { id:'c2', label:'чёрное серебро', lo:'#191919', hi:'#7A7A7A', dot:'#616161' },
-  { id:'c3', label:'чёрный матовый', lo:'#0E0E0E', hi:'#3E3E3E', dot:'#323232' },
-  { id:'c4', label:'зелёный антик',  lo:'#122019', hi:'#5A8873', dot:'#486E5C' },
-  { id:'c5', label:'золотой антик',  lo:'#2A2314', hi:'#B5A074', dot:'#97855F' }
+  { id:'c1', label:'медный антик',   dot:'#672821' },
+  { id:'c2', label:'чёрное серебро', dot:'#616161' },
+  { id:'c3', label:'чёрный матовый', dot:'#323232' },
+  { id:'c4', label:'зелёный антик',  dot:'#486E5C' },
+  { id:'c5', label:'золотой антик',  dot:'#97855F' }
 ];
 const FENCES = [{ id:'n0', n:0 }, ...FENCE_DATA];
 
-const hex2rgb = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16) / 255);
-function coatFilter(c) {
-  const lo = hex2rgb(c.lo), hi = hex2rgb(c.hi);
-  const ch = ['R','G','B'].map((k,i) =>
-    `<feFunc${k} type="table" tableValues="${lo[i].toFixed(3)} ${hi[i].toFixed(3)}"/>`).join('');
-  return '<filter id="coat" color-interpolation-filters="sRGB">' +
-         '<feColorMatrix type="saturate" values="0"/>' +
-         `<feComponentTransfer>${ch}</feComponentTransfer></filter>`;
-}
-
 /* ---------- малые формы: каталог 2025 ------------------------------------ */
 const KINDS = {
-  table:  { label:'Стол',      plural:'Столы',    realH: 720 },
-  bench:  { label:'Лавка',     plural:'Лавки',    realH: 760 },
-  vase:   { label:'Ваза',      plural:'Вазы',     realH: 520 },
-  cross:  { label:'Крест',     plural:'Кресты',   realH: 2000 },
-  corner: { label:'Угол',      plural:'Углы',     realH: 600 },
-  slab:   { label:'Надгробие', plural:'Надгробие',realH: 220 }
+  table:  { label:'Стол',      plural:'Столы',    fw:600,  fd:600 },  // 50×60 см и d60 см — считаем как 600×600
+  bench:  { label:'Лавка',     plural:'Лавки',    fw:1000, fd:370 },  // длина 100 см, ширина 30–36 см (каталог)
+  vase:   { label:'Ваза',      plural:'Вазы' },
+  cross:  { label:'Крест',     plural:'Кресты' },
+  corner: { label:'Угол',      plural:'Углы' },
+  slab:   { label:'Надгробие', plural:'Надгробие' }
 };
 const BENCHES = SMALL_DATA.filter(o => o.kind === 'bench' || o.kind === 'table');
 const VASES   = SMALL_DATA.filter(o => o.kind === 'vase');
 const NONE    = { id:'none', kind:'none' };
 
-/* ---------- плита -------------------------------------------------------- */
-function drawFloor(W, L, f) {
-  const INSET = Math.min(W, L) * 0.20;
-  const s = f.stone ? STONE[f.stone] : null;
-  const fill = s ? s.top : f.fill, seam = s ? s.seam : f.line;
-  const i0 = INSET, iW = W - INSET, iL = L - INSET;
-  const c = [P(i0,0,i0), P(iW,0,i0), P(iW,0,iL), P(i0,0,iL)];
-  let out = poly(c, fill);
-  if (f.grid) {
-    let g = '';
-    for (let x = i0 + f.grid; x < iW; x += f.grid) g += line(P(x,0,i0), P(x,0,iL), 1, seam);
-    for (let z = i0 + f.grid; z < iL; z += f.grid) g += line(P(i0,0,z), P(iW,0,z), 1, seam);
-    out += `<g opacity=".55">${g}</g>`;
-  }
-  if (f.grass) {
-    let g = '';
-    for (let x = i0+40; x < iW; x += 74)
-      for (let z = i0+40; z < iL; z += 62) g += line(P(x,0,z), P(x, 30 + ((x*z) % 14), z), 1.1, '#5B8A4F');
-    out += `<g opacity=".85">${g}</g>`;
-  }
-  if (f.speck) {
-    let g = '';
-    for (let x = i0+30; x < iW; x += 54)
-      for (let z = i0+30; z < iL; z += 48) {
-        const a = P(x + ((z % 3) * 11), 0, z);
-        g += `<circle cx="${a[0].toFixed(1)}" cy="${a[1].toFixed(1)}" r="${1.3 + (x % 3) * 0.4}"/>`;
-      }
-    out += `<g fill="#878D90" opacity=".8">${g}</g>`;
-  }
-  return out + poly(c, 'none', ' stroke="#4A5053" stroke-width="1.1"');
-}
+/* ---------- геометрия плана: константы, проверенные расчётом -------------
+   Худший случай (торец цветника 700 мм, глубина тумбы 200 мм — максимумы по
+   всем 34 моделям прайса) даёт зазор лавки/стола до передней ограды не менее
+   140 мм и до вазы не менее 55 мм на самом узком участке 2,5×2 м. Проверено
+   арифметически по факту, не на глаз — см. README.                        */
+const FENCE_INSET = 90;     // условная толщина ограды на схеме, мм
+const NO_FENCE_GAP = 20;    // отступ от края участка, если ограды нет
+const GAP_BACK  = 200;      // от ограды до стелы
+const GAP_FRONT = 120;      // от цветника до лавки/стола
+const BLOCK_PAD = 60;       // отступ бетонного основания от стелы/тумбы/цветника
+const BED_DEPTH = 1000;     // стандартная длина цветника
+const VASE_R    = 55;       // радиус вазы на схеме, мм
 
-/* основание под комплект: верх и две видимые боковины */
-function slab(x0, z0, sx, sz, y, th, st) {
-  return poly([P(x0,y,z0), P(x0+sx,y,z0), P(x0+sx,y,z0+sz), P(x0,y,z0+sz)], st.top)
-       + poly([P(x0,y-th,z0), P(x0+sx,y-th,z0), P(x0+sx,y,z0), P(x0,y,z0)], st.side)
-       + poly([P(x0,y-th,z0), P(x0,y-th,z0+sz), P(x0,y,z0+sz), P(x0,y,z0)], st.seam);
-}
+const r1 = n => Math.round(n * 10) / 10;
+const rect = (x, y, w, h, fill, extra='') =>
+  `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="${fill}" ${extra}/>`;
+const circle = (cx, cy, rr, fill, extra='') =>
+  `<circle cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(rr)}" fill="${fill}" ${extra}/>`;
+const seg = (x1, y1, x2, y2, stroke, w=4, extra='') =>
+  `<line x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`;
+const label = (x, y, txt, size=90, extra='') =>
+  `<text x="${r1(x)}" y="${r1(y)}" font-family="IBM Plex Mono, monospace" font-size="${size}" ${extra}>${txt}</text>`;
 
-/* рендер из каталога, поставленный на точку участка */
-function placed(item, x, z, realH, align) {
-  const h = realH * K.y, w = h * (item.w / item.h);
-  const a = P(x, 0, z);
-  const left = a[0] - w * (align === 'left' ? 0.15 : 0.5);
-  return `<image href="${item.img}" x="${left.toFixed(1)}" y="${(a[1] - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>`;
-}
-
-/* ---------- сцена -------------------------------------------------------- */
-function buildScene(S) {
+/* ---------- план участка (вид сверху, 1 svg-единица = 1 мм) --------------- */
+function buildPlan(S) {
   const { model, plot, floor, fence, coat, bench, vase } = S;
-  const W = plot.w, L = plot.l, xc = W / 2;
+  const W = plot.w, L = plot.l;
+  const inset = fence.n ? FENCE_INSET : NO_FENCE_GAP;
+  const ix0 = inset, ix1 = W - inset, iy0 = inset, iy1 = L - inset;
+  const iw = ix1 - ix0, il = iy1 - iy0;
 
-  /* рендеры нормализованы: общий масштаб, ближний угол основания по центру
-     холста на базовой линии — поэтому посадка одинакова для всех моделей.  */
-  const sc = K.y / NORM_PX_MM;
-  const imgW = model.w * sc, imgH = model.h * sc;
-  const face = model.cvetnik.find(c => c[0] < 1000) || model.cvetnik[0];
-  const CW = face[0] + 150, CL = 1000 + (model.tumba ? model.tumba[1] : 160) + 120;
-  const BW = CW + 150, BL = CL + 170, BH = 55;
-  const zFront = Math.max(200, L - 320 - CL);
-  const bx = xc - BW / 2, bz = zFront - (BL - CL) / 2;
-  const anchor = P(xc - CW / 2, BH, zFront);
-  const imgX = anchor[0] - imgW * 0.5;
-  const imgY = anchor[1] - (model.h - BASE_PAD) * sc;
+  /* гранитный блок: реальная ширина по цветнику, реальная глубина по тумбе */
+  const torec = (model.cvetnik.find(c => c[0] < 1000) || model.cvetnik[0])[0];
+  const tumbaDepth = model.tumba ? model.tumba[1] : 160;
+  const BW = torec + BLOCK_PAD * 2;
+  const stoneDepth = tumbaDepth + BLOCK_PAD;
+  const bx0 = (W - BW) / 2, bx1 = bx0 + BW;
+  const by0 = iy0 + GAP_BACK, byMid = by0 + stoneDepth, by1 = byMid + BED_DEPTH;
 
-  const fs = floor.stone ? STONE[floor.stone] : null;
-  const bed = slab(bx, bz, BW, BL, BH, BH,
-    fs ? { top:fs.side, side:fs.seam, seam:fs.side } : { top:'#4A5053', side:'#31373A', seam:'#3C4245' });
+  const st = floor.stone ? STONE[floor.stone] : null;
+  const groundFill = st ? st.top : floor.fill;
+  const groundLine = st ? st.line : floor.line;
 
-  /* ограда из каталога: внутренняя площадка кадра — примерно 36…95 % высоты */
-  let far = '', near = '', fbox = null;
+  let g = '';
+  /* фон покрытия внутри ограды + текстура */
+  g += rect(ix0, iy0, iw, il, groundFill);
+  if (floor.grid) {
+    let l = '';
+    for (let x = ix0 + floor.grid; x < ix1; x += floor.grid) l += seg(x, iy0, x, iy1, groundLine, 3);
+    for (let y = iy0 + floor.grid; y < iy1; y += floor.grid) l += seg(ix0, y, ix1, y, groundLine, 3);
+    g += `<g opacity=".5">${l}</g>`;
+  }
+  if (floor.grass) {
+    let l = '';
+    for (let x = ix0 + 60; x < ix1; x += 110)
+      for (let y = iy0 + 60; y < iy1; y += 95) l += seg(x, y, x + ((x*y) % 20 - 10), y - 55, groundLine, 5, 'stroke-linecap="round"');
+    g += `<g opacity=".8">${l}</g>`;
+  }
+  if (floor.speck) {
+    let l = '';
+    for (let x = ix0 + 45; x < ix1; x += 85)
+      for (let y = iy0 + 45; y < iy1; y += 75) l += circle(x + ((y % 3) * 16), y, 5 + (x % 3) * 2, groundLine);
+    g += `<g opacity=".7">${l}</g>`;
+  }
+  g += rect(ix0, iy0, iw, il, 'none', 'stroke="var(--plan-ink)" stroke-width="4" opacity=".55"');
+
+  /* контур участка (пунктир) */
+  g += rect(4, 4, W - 8, L - 8, 'none', 'stroke="var(--plan-dim)" stroke-width="6" stroke-dasharray="20 16"');
+
+  /* ограда: прямоугольник + угловые столбы, цвет — маркер покрытия */
   if (fence.n) {
-    const pp = [P(0,0,0), P(W,0,0), P(W,0,L), P(0,0,L)];
-    const pxs = pp.map(q => q[0]), pys = pp.map(q => q[1]);
-    const px0 = Math.min(...pxs), px1 = Math.max(...pxs);
-    const py0 = Math.min(...pys), py1 = Math.max(...pys);
-    const IN_TOP = 0.36, IN_BOT = 0.95;
-    const fw = (px1 - px0) * 1.12;
-    const fh = (py1 - py0) / (IN_BOT - IN_TOP);
-    const fx = px0 - (fw - (px1 - px0)) / 2;
-    const fy = py1 + 14 - fh * IN_BOT;
-    const img = `<image href="${fence.img}" x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" filter="url(#coat)"/>`;
-    const cut = fy + fh * 0.66;
-    far = img;
-    near = `<clipPath id="fclip"><rect x="${fx.toFixed(1)}" y="${cut.toFixed(1)}" width="${fw.toFixed(1)}" height="${(fh * 0.34).toFixed(1)}"/></clipPath><g clip-path="url(#fclip)">${img}</g>`;
-    fbox = [fx, fy, fw, fh];
+    const fc = coat.dot;
+    g += rect(ix0, iy0, iw, il, 'none', `stroke="${fc}" stroke-width="14"`);
+    for (const [px, py] of [[ix0,iy0],[ix1,iy0],[ix0,iy1],[ix1,iy1]])
+      g += rect(px - 16, py - 16, 32, 32, fc);
   }
 
-  const shadow = `<ellipse cx="${(anchor[0] + imgW * 0.06).toFixed(1)}" cy="${(anchor[1] + 2).toFixed(1)}" rx="${(imgW * 0.3).toFixed(1)}" ry="${(imgW * 0.045).toFixed(1)}" fill="#0B0C0D" opacity=".18"/>`;
+  /* гранитный блок: тумба + стела сзади, цветник (с газоном) спереди */
+  g += rect(bx0, by0, BW, stoneDepth, '#33383B');
+  g += rect(bx0, byMid, BW, BED_DEPTH, '#484D50');
+  let bed = '';
+  for (let x = bx0 + 55; x < bx1 - 20; x += 60)
+    for (let y = byMid + 55; y < by1 - 20; y += 78) bed += seg(x, y, x + 6, y - 40, '#5B8A4F', 6, 'stroke-linecap="round"');
+  g += bed;
+  g += rect(bx0, by0, BW, by1 - by0, 'none', 'stroke="#202426" stroke-width="5"');
+  g += seg(bx0, byMid, bx1, byMid, '#202426', 6);
 
-  let props = '';
+  /* вазы у переднего края цветника */
   if (vase.kind === 'vase') {
-    const off = CW / 2 + 170;
-    props += placed(vase, xc - off, zFront + CL - 120, KINDS.vase.realH)
-           + placed(vase, xc + off, zFront + CL - 120, KINDS.vase.realH);
+    g += circle(bx0 - 30, by1 + 10, VASE_R, '#3D4245', 'stroke="#202426" stroke-width="4"');
+    g += circle(bx1 + 30, by1 + 10, VASE_R, '#3D4245', 'stroke="#202426" stroke-width="4"');
+    g += label(bx0 - 30, by1 + 10 + VASE_R + 55, 'ваза', 46, 'fill="var(--plan-dim)" text-anchor="middle"');
   }
-  if (bench.kind !== 'none')
-    props += placed(bench, W * 0.78, Math.min(460, zFront - 400), KINDS[bench.kind].realH);
 
-  const plate = plot.war
-    ? `<text x="${P(W,0,0)[0].toFixed(1)}" y="${(P(W,0,0)[1] + 26).toFixed(1)}" fill="#7C8387" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1.4">ВОИНСКИЙ СЕКТОР</text>`
-    : '';
+  /* лавка или стол — по центру, за цветником */
+  if (bench.kind !== 'none') {
+    const fw = KINDS[bench.kind].fw, fd = KINDS[bench.kind].fd;
+    const fx = (W - fw) / 2, fy = by1 + GAP_FRONT;
+    g += rect(fx, fy, fw, fd, '#3D4245', 'stroke="#202426" stroke-width="5"');
+    if (bench.kind === 'bench') g += seg(fx + 30, fy + 22, fx + fw - 30, fy + 22, '#202426', 5);
+    g += label(fx + fw / 2, fy + fd + 60, KINDS[bench.kind].label.toLowerCase(), 46,
+               'fill="var(--plan-dim)" text-anchor="middle"');
+  }
 
-  const body = coatFilter(coat) + drawFloor(W, L, floor) + far + shadow + bed
-    + `<image href="${model.img}" x="${imgX.toFixed(1)}" y="${imgY.toFixed(1)}" width="${imgW.toFixed(1)}" height="${imgH.toFixed(1)}"/>`
-    + props + near + plate;
+  /* подписи */
+  g += label(24, L - 24, plot.note, 62, 'fill="var(--plan-dim)"');
+  if (fence.n) g += label(W - 24, 78, `ограда № ${fence.n}`, 62, 'fill="var(--plan-dim)" text-anchor="end"');
 
-  const cor = [];
-  for (const x of [0, W]) for (const z of [0, L]) for (const y of [0, 260]) cor.push(P(x,y,z));
-  cor.push([imgX, imgY], [imgX + imgW, imgY + imgH]);
-  if (fbox) cor.push([fbox[0], fbox[1] + fbox[3] * 0.30], [fbox[0] + fbox[2], fbox[1] + fbox[3]]);
-  const xs = cor.map(p => p[0]), ys = cor.map(p => p[1]), pad = 28;
-  const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
-  const vw = Math.max(...xs) - x0 + pad, vh = Math.max(...ys) - y0 + pad;
-  const fname = fence.n ? ('ограда ' + fence.n) : 'без ограды';
-  return `<svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" role="img" aria-label="Участок ${plot.note}: комплект ${model.code}, ${fname}, ${floor.label}">${body}</svg>`;
+  /* масштабная линейка: 500 мм */
+  const sx = W - 24 - 500, sy = L - 60;
+  g += seg(sx, sy, sx + 500, sy, 'var(--plan-ink)', 5) + seg(sx, sy-14, sx, sy+14, 'var(--plan-ink)', 5)
+     + seg(sx+500, sy-14, sx+500, sy+14, 'var(--plan-ink)', 5)
+     + label(sx + 250, sy - 20, '0,5 м', 40, 'fill="var(--plan-dim)" text-anchor="middle"');
+
+  return `<svg viewBox="0 0 ${W} ${L}" role="img" aria-label="План участка ${plot.note}: комплект № ${model.code}${fence.n ? ', ограда № ' + fence.n : ', без ограды'}, ${floor.label.toLowerCase()}">${g}</svg>`;
 }
 
+/* ---------- галерея «ваш комплект»: чёткие фото, без монтажа ------------- */
+function buildKit(S) {
+  const items = [{ label: 'Памятник', code: S.model.code, img: S.model.img }];
+  if (S.fence.n) items.push({ label: 'Ограда', code: S.fence.n, img: S.fence.img, coat: S.coat });
+  if (S.bench.kind !== 'none') items.push({ label: KINDS[S.bench.kind].label, code: S.bench.n, img: S.bench.img });
+  if (S.vase.kind === 'vase') items.push({ label: 'Ваза', code: S.vase.n, img: S.vase.img });
+  return items.map(o => `
+    <div class="kit-card">
+      <div class="kit-card-img"><img src="${o.img}" alt="${o.label} № ${o.code}" loading="lazy"></div>
+      <div class="kit-card-label"><b>${o.label} № ${o.code}</b>${o.coat ? `<span class="kit-dot" style="background:${o.coat.dot}" title="${o.coat.label}"></span>` : ''}</div>
+    </div>`).join('');
+}
 /* ---------- состояние ---------------------------------------------------- */
 const S = { model: MODELS[0], plot: PLOTS[0], floor: FLOORS[0], fence: FENCES[1],
             coat: COATINGS[2], bench: NONE, vase: NONE, shape:'all' };
@@ -221,11 +212,10 @@ function miniRow(host, items, key, label) {
 }
 
 function render() {
-  $('scene').innerHTML = buildScene(S);
-  const add = [S.bench.kind !== 'none' && `${KINDS[S.bench.kind].label.toLowerCase()} № ${S.bench.n}`,
-               S.vase.kind === 'vase' && `ваза № ${S.vase.n}`].filter(Boolean);
-  const fname = S.fence.n ? `ограда № ${S.fence.n}, ${S.coat.label}` : 'без ограды';
-  $('sceneNote').textContent = [fname, S.floor.label.toLowerCase(), S.plot.note, ...add].join(' · ');
+  $('scene').innerHTML = buildPlan(S);
+  $('kit').innerHTML = buildKit(S);
+  const coatTxt = S.fence.n ? `, покрытие ${S.coat.label}` : '';
+  $('sceneNote').textContent = `${S.floor.label.toLowerCase()}${coatTxt} · план в масштабе, фото комплекта — ниже`;
   $('oCode').textContent  = '№ ' + S.model.code;
   $('oShape').textContent = S.model.fig ? 'фигурная' : 'прямая';
   $('oStela').textContent = mm(S.model.stela);
