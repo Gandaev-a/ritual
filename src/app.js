@@ -56,135 +56,121 @@ const BENCHES = SMALL_DATA.filter(o => o.kind === 'bench' || o.kind === 'table')
 const VASES   = SMALL_DATA.filter(o => o.kind === 'vase');
 const NONE    = { id:'none', kind:'none' };
 
-/* ---------- геометрия плана: константы, проверенные расчётом -------------
-   Худший случай (торец цветника 700 мм, глубина тумбы 200 мм — максимумы по
-   всем 34 моделям прайса) даёт зазор лавки/стола до передней ограды не менее
-   140 мм и до вазы не менее 55 мм на самом узком участке 2,5×2 м. Проверено
-   арифметически по факту, не на глаз — см. README.                        */
-const FENCE_INSET = 90;     // условная толщина ограды на схеме, мм
-const NO_FENCE_GAP = 20;    // отступ от края участка, если ограды нет
-const GAP_BACK  = 200;      // от ограды до стелы
-const GAP_FRONT = 120;      // от цветника до лавки/стола
-const BLOCK_PAD = 60;       // отступ бетонного основания от стелы/тумбы/цветника
-const BED_DEPTH = 1000;     // стандартная длина цветника
-const VASE_R    = 55;       // радиус вазы на схеме, мм
-
+/* ---------- примитивы svg ------------------------------------------------ */
 const r1 = n => Math.round(n * 10) / 10;
-const rect = (x, y, w, h, fill, extra='') =>
-  `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="${fill}" ${extra}/>`;
 const circle = (cx, cy, rr, fill, extra='') =>
   `<circle cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(rr)}" fill="${fill}" ${extra}/>`;
 const seg = (x1, y1, x2, y2, stroke, w=4, extra='') =>
   `<line x1="${r1(x1)}" y1="${r1(y1)}" x2="${r1(x2)}" y2="${r1(y2)}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`;
-const label = (x, y, txt, size=90, extra='') =>
-  `<text x="${r1(x)}" y="${r1(y)}" font-family="IBM Plex Mono, monospace" font-size="${size}" ${extra}>${txt}</text>`;
+const label = (x, y, txt, size, extra='') =>
+  `<text x="${r1(x)}" y="${r1(y)}" font-family="IBM Plex Mono, monospace" font-size="${r1(size)}" ${extra}>${txt}</text>`;
 
-/* ---------- план участка (вид сверху, 1 svg-единица = 1 мм) --------------- */
-function buildPlan(S) {
-  const { model, plot, floor, fence, coat, bench, vase } = S;
-  const W = plot.w, L = plot.l;
-  const inset = fence.n ? FENCE_INSET : NO_FENCE_GAP;
-  const ix0 = inset, ix1 = W - inset, iy0 = inset, iy1 = L - inset;
-  const iw = ix1 - ix0, il = iy1 - iy0;
+/* ---------- сцена: объекты в ряд на общей плоскости ----------------------
+   Фотографии сняты разными камерами (разброс угла базовой линии между
+   источниками доходит до 22°, см. README), поэтому совмещать их в одну
+   3D-композицию нельзя — памятник вставал криво, лавка наезжала на цветник.
+   Здесь объекты не накладываются: каждый стоит отдельно, все — на одной
+   нижней плоскости, в едином масштабе по реальным миллиметрам.            */
+const K = 0.23;                 // px на мм сцены
+const NORM_PX_MM = 0.40;        // масштаб нормализованных рендеров памятников
+const GAP      = 300;           // зазор между объектами, мм
+const FLOOR_H  = 340;           // высота полосы пола, мм
+const PAD_TOP  = 260;           // воздух над самым высоким объектом, мм
+const LABEL_H  = 330;           // место под подпись, мм
+const SIDE_PAD = 260;           // поля слева и справа, мм — под подписи крайних объектов
 
-  /* гранитный блок: реальная ширина по цветнику, реальная глубина по тумбе */
-  const torec = (model.cvetnik.find(c => c[0] < 1000) || model.cvetnik[0])[0];
-  const tumbaDepth = model.tumba ? model.tumba[1] : 160;
-  const BW = torec + BLOCK_PAD * 2;
-  const stoneDepth = tumbaDepth + BLOCK_PAD;
-  const bx0 = (W - BW) / 2, bx1 = bx0 + BW;
-  const by0 = iy0 + GAP_BACK, byMid = by0 + stoneDepth, by1 = byMid + BED_DEPTH;
+/* реальная опорная величина: по ней объект приводится к общему масштабу */
+const REAL = {
+  model: o => ({ dim:'h', mm: o.stela[0] + 380 }),          // стела плюс основание
+  fence: () => ({ dim:'w', mm: 2500 }),                      // участок 250 см по каталогу
+  bench: () => ({ dim:'w', mm: 1000 }),                      // длина лавки 100 см
+  table: () => ({ dim:'h', mm: 1000 }),                      // столб стола H=100 см
+  vase:  () => ({ dim:'h', mm: 450 })                        // высота вазы 40–50 см
+};
 
-  const st = floor.stone ? STONE[floor.stone] : null;
-  const groundFill = st ? st.top : floor.fill;
-  const groundLine = st ? st.line : floor.line;
+/* габариты объекта на сцене с учётом полей внутри холста */
+function place(kind, o) {
+  const r = REAL[kind](o);
+  const objW = o.bw * o.w, objH = o.bh * o.h;                // объект внутри холста, px
+  const scale = (r.mm * K) / (r.dim === 'w' ? objW : objH);
+  return {
+    img: o.img, scale,
+    cw: o.w * scale, ch: o.h * scale,                        // холст на сцене
+    ox: o.bx * o.w * scale, oy: o.by * o.h * scale,          // смещение объекта в холсте
+    w: objW * scale, h: objH * scale
+  };
+}
+
+function floorStrip(x, y, w, h, f) {
+  const st = f.stone ? STONE[f.stone] : null;
+  const fill = st ? st.top : f.fill, lineCol = st ? st.line : f.line;
+  let g = `<rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${r1(h)}" fill="${fill}"/>`;
+  if (f.grid) {
+    let l = '';
+    for (let yy = y + h * 0.34; yy < y + h; yy += h * 0.33) l += seg(x, yy, x + w, yy, lineCol, 3);
+    for (let xx = x + f.grid * K; xx < x + w; xx += f.grid * K) l += seg(xx, y, xx, y + h, lineCol, 3);
+    g += `<g opacity=".45">${l}</g>`;
+  }
+  if (f.grass) {
+    let l = '';
+    for (let xx = x + 12; xx < x + w; xx += 26)
+      for (let yy = y + 14; yy < y + h; yy += 22) l += seg(xx, yy, xx + ((xx * yy) % 7 - 3), yy - 13, lineCol, 2.4, 'stroke-linecap="round"');
+    g += `<g opacity=".75">${l}</g>`;
+  }
+  if (f.speck) {
+    let l = '';
+    for (let xx = x + 10; xx < x + w; xx += 21)
+      for (let yy = y + 12; yy < y + h; yy += 18) l += circle(xx + ((yy % 3) * 4), yy, 1.4 + (xx % 3) * 0.5, lineCol);
+    g += `<g opacity=".65">${l}</g>`;
+  }
+  return g + seg(x, y, x + w, y, '#ffffff', 2.5, 'opacity=".5"');
+}
+
+function buildScene(S, perRow) {
+  const picked = [{ kind:'model', o:S.model, label:`Памятник № ${S.model.code}` }];
+  if (S.fence.n) picked.push({ kind:'fence', o:S.fence, label:`Ограда № ${S.fence.n}` });
+  if (S.bench.kind !== 'none')
+    picked.push({ kind:S.bench.kind, o:S.bench, label:`${KINDS[S.bench.kind].label} № ${S.bench.n}` });
+  if (S.vase.kind === 'vase') picked.push({ kind:'vase', o:S.vase, label:`Ваза № ${S.vase.n}` });
+
+  const items = picked.map(p => ({ ...p, g: place(p.kind, p.o) }));
+  const gap = GAP * K, floorH = FLOOR_H * K, padTop = PAD_TOP * K, labelH = LABEL_H * K;
+
+  /* разбивка на ряды: на узком экране объекты переносятся, каждый ряд — своя плоскость */
+  const rows = [];
+  for (let i = 0; i < items.length; i += perRow) rows.push(items.slice(i, i + perRow));
+
+  const rowW = rows.map(r => r.reduce((s, it) => s + it.g.w, 0) + gap * (r.length - 1));
+  const rowH = rows.map(r => Math.max(...r.map(it => it.g.h)));
+  const sceneW = Math.max(...rowW) + SIDE_PAD * K * 2;
+  const rowBoxH = rowH.map(h => padTop + h + floorH + labelH);
+  const sceneH = rowBoxH.reduce((a, b) => a + b, 0);
 
   let g = '';
-  /* фон покрытия внутри ограды + текстура */
-  g += rect(ix0, iy0, iw, il, groundFill);
-  if (floor.grid) {
-    let l = '';
-    for (let x = ix0 + floor.grid; x < ix1; x += floor.grid) l += seg(x, iy0, x, iy1, groundLine, 3);
-    for (let y = iy0 + floor.grid; y < iy1; y += floor.grid) l += seg(ix0, y, ix1, y, groundLine, 3);
-    g += `<g opacity=".5">${l}</g>`;
-  }
-  if (floor.grass) {
-    let l = '';
-    for (let x = ix0 + 60; x < ix1; x += 110)
-      for (let y = iy0 + 60; y < iy1; y += 95) l += seg(x, y, x + ((x*y) % 20 - 10), y - 55, groundLine, 5, 'stroke-linecap="round"');
-    g += `<g opacity=".8">${l}</g>`;
-  }
-  if (floor.speck) {
-    let l = '';
-    for (let x = ix0 + 45; x < ix1; x += 85)
-      for (let y = iy0 + 45; y < iy1; y += 75) l += circle(x + ((y % 3) * 16), y, 5 + (x % 3) * 2, groundLine);
-    g += `<g opacity=".7">${l}</g>`;
-  }
-  g += rect(ix0, iy0, iw, il, 'none', 'stroke="var(--plan-ink)" stroke-width="4" opacity=".55"');
+  let yCursor = 0;
+  rows.forEach((row, ri) => {
+    const baseline = yCursor + padTop + rowH[ri];
+    g += floorStrip(0, baseline, sceneW, floorH, S.floor);
+    let x = (sceneW - rowW[ri]) / 2;
+    for (const it of row) {
+      const { g: q } = it;
+      /* тень на плоскости — привязана к низу объекта, одинаково у всех */
+      g += `<ellipse cx="${r1(x + q.w / 2)}" cy="${r1(baseline + 3)}" rx="${r1(q.w * 0.46)}" ry="${r1(Math.max(3, q.w * 0.035))}" fill="#0B0C0D" opacity=".11"/>`;
+      g += `<image href="${q.img}" x="${r1(x - q.ox)}" y="${r1(baseline - q.oy - q.h)}" width="${r1(q.cw)}" height="${r1(q.ch)}"/>`;
+      g += label(x + q.w / 2, baseline + floorH + labelH * 0.55, it.label, labelH * 0.42,
+                 'fill="#5D6467" text-anchor="middle"');
+      x += q.w + gap;
+    }
+    yCursor += rowBoxH[ri];
+  });
 
-  /* контур участка (пунктир) */
-  g += rect(4, 4, W - 8, L - 8, 'none', 'stroke="var(--plan-dim)" stroke-width="6" stroke-dasharray="20 16"');
-
-  /* ограда: прямоугольник + угловые столбы, цвет — маркер покрытия */
-  if (fence.n) {
-    const fc = coat.dot;
-    g += rect(ix0, iy0, iw, il, 'none', `stroke="${fc}" stroke-width="14"`);
-    for (const [px, py] of [[ix0,iy0],[ix1,iy0],[ix0,iy1],[ix1,iy1]])
-      g += rect(px - 16, py - 16, 32, 32, fc);
-  }
-
-  /* гранитный блок: тумба + стела сзади, цветник (с газоном) спереди */
-  g += rect(bx0, by0, BW, stoneDepth, '#33383B');
-  g += rect(bx0, byMid, BW, BED_DEPTH, '#484D50');
-  let bed = '';
-  for (let x = bx0 + 55; x < bx1 - 20; x += 60)
-    for (let y = byMid + 55; y < by1 - 20; y += 78) bed += seg(x, y, x + 6, y - 40, '#5B8A4F', 6, 'stroke-linecap="round"');
-  g += bed;
-  g += rect(bx0, by0, BW, by1 - by0, 'none', 'stroke="#202426" stroke-width="5"');
-  g += seg(bx0, byMid, bx1, byMid, '#202426', 6);
-
-  /* вазы у переднего края цветника */
-  if (vase.kind === 'vase') {
-    g += circle(bx0 - 30, by1 + 10, VASE_R, '#3D4245', 'stroke="#202426" stroke-width="4"');
-    g += circle(bx1 + 30, by1 + 10, VASE_R, '#3D4245', 'stroke="#202426" stroke-width="4"');
-    g += label(bx0 - 30, by1 + 10 + VASE_R + 55, 'ваза', 46, 'fill="var(--plan-dim)" text-anchor="middle"');
-  }
-
-  /* лавка или стол — по центру, за цветником */
-  if (bench.kind !== 'none') {
-    const fw = KINDS[bench.kind].fw, fd = KINDS[bench.kind].fd;
-    const fx = (W - fw) / 2, fy = by1 + GAP_FRONT;
-    g += rect(fx, fy, fw, fd, '#3D4245', 'stroke="#202426" stroke-width="5"');
-    if (bench.kind === 'bench') g += seg(fx + 30, fy + 22, fx + fw - 30, fy + 22, '#202426', 5);
-    g += label(fx + fw / 2, fy + fd + 60, KINDS[bench.kind].label.toLowerCase(), 46,
-               'fill="var(--plan-dim)" text-anchor="middle"');
-  }
-
-  /* подписи */
-  g += label(24, L - 24, plot.note, 62, 'fill="var(--plan-dim)"');
-  if (fence.n) g += label(W - 24, 78, `ограда № ${fence.n}`, 62, 'fill="var(--plan-dim)" text-anchor="end"');
-
-  /* масштабная линейка: 500 мм */
-  const sx = W - 24 - 500, sy = L - 60;
-  g += seg(sx, sy, sx + 500, sy, 'var(--plan-ink)', 5) + seg(sx, sy-14, sx, sy+14, 'var(--plan-ink)', 5)
-     + seg(sx+500, sy-14, sx+500, sy+14, 'var(--plan-ink)', 5)
-     + label(sx + 250, sy - 20, '0,5 м', 40, 'fill="var(--plan-dim)" text-anchor="middle"');
-
-  return `<svg viewBox="0 0 ${W} ${L}" role="img" aria-label="План участка ${plot.note}: комплект № ${model.code}${fence.n ? ', ограда № ' + fence.n : ', без ограды'}, ${floor.label.toLowerCase()}">${g}</svg>`;
+  const names = items.map(i => i.label).join(', ');
+  return `<svg viewBox="0 0 ${r1(sceneW)} ${r1(sceneH)}" role="img" aria-label="${names} — в одном масштабе на общей плоскости">${g}</svg>`;
 }
 
-/* ---------- галерея «ваш комплект»: чёткие фото, без монтажа ------------- */
-function buildKit(S) {
-  const items = [{ label: 'Памятник', code: S.model.code, img: S.model.img }];
-  if (S.fence.n) items.push({ label: 'Ограда', code: S.fence.n, img: S.fence.img, coat: S.coat });
-  if (S.bench.kind !== 'none') items.push({ label: KINDS[S.bench.kind].label, code: S.bench.n, img: S.bench.img });
-  if (S.vase.kind === 'vase') items.push({ label: 'Ваза', code: S.vase.n, img: S.vase.img });
-  return items.map(o => `
-    <div class="kit-card">
-      <div class="kit-card-img"><img src="${o.img}" alt="${o.label} № ${o.code}" loading="lazy"></div>
-      <div class="kit-card-label"><b>${o.label} № ${o.code}</b>${o.coat ? `<span class="kit-dot" style="background:${o.coat.dot}" title="${o.coat.label}"></span>` : ''}</div>
-    </div>`).join('');
-}
+/* на узком экране объекты переносятся во второй ряд, иначе стоят одной линией */
+const perRow = () => (window.innerWidth < 900 ? 2 : 4);
+
 /* ---------- состояние ---------------------------------------------------- */
 const S = { model: MODELS[0], plot: PLOTS[0], floor: FLOORS[0], fence: FENCES[1],
             coat: COATINGS[2], bench: NONE, vase: NONE, shape:'all' };
@@ -212,10 +198,10 @@ function miniRow(host, items, key, label) {
 }
 
 function render() {
-  $('scene').innerHTML = buildPlan(S);
-  $('kit').innerHTML = buildKit(S);
+  $('scene').innerHTML = buildScene(S, perRow());
   const coatTxt = S.fence.n ? `, покрытие ${S.coat.label}` : '';
-  $('sceneNote').textContent = `${S.floor.label.toLowerCase()}${coatTxt} · план в масштабе, фото комплекта — ниже`;
+  $('sceneNote').textContent =
+    `${S.plot.note} · ${S.floor.label.toLowerCase()}${coatTxt} · всё в одном масштабе, рядом друг с другом`;
   $('oCode').textContent  = '№ ' + S.model.code;
   $('oShape').textContent = S.model.fig ? 'фигурная' : 'прямая';
   $('oStela').textContent = mm(S.model.stela);
@@ -406,3 +392,9 @@ drawCatalogue();
 drawFenceCat();
 drawSmallCat();
 render();
+
+/* перестроить ряды при смене ширины окна */
+let lastPerRow = perRow();
+window.addEventListener('resize', () => {
+  if (perRow() !== lastPerRow) { lastPerRow = perRow(); render(); }
+});
