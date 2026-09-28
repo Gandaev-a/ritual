@@ -75,6 +75,7 @@ const K = 0.23;                 // px на мм сцены
 const NORM_PX_MM = 0.40;        // масштаб нормализованных рендеров памятников
 const GAP      = 300;           // зазор между объектами, мм
 const FLOOR_H  = 340;           // высота полосы пола, мм
+const FLOOR_DROP = 170;         // плита ниже основания объектов, мм — чтобы не заходила на фигуры
 const PAD_TOP  = 260;           // воздух над самым высоким объектом, мм
 const LABEL_H  = 330;           // место под подпись, мм
 const SIDE_PAD = 260;           // поля слева и справа, мм — под подписи крайних объектов
@@ -135,6 +136,7 @@ function buildScene(S, perRow) {
 
   const items = picked.map(p => ({ ...p, g: place(p.kind, p.o) }));
   const gap = GAP * K, floorH = FLOOR_H * K, padTop = PAD_TOP * K, labelH = LABEL_H * K;
+  const drop = FLOOR_DROP * K;
 
   /* разбивка на ряды: на узком экране объекты переносятся, каждый ряд — своя плоскость */
   const rows = [];
@@ -143,21 +145,21 @@ function buildScene(S, perRow) {
   const rowW = rows.map(r => r.reduce((s, it) => s + it.g.w, 0) + gap * (r.length - 1));
   const rowH = rows.map(r => Math.max(...r.map(it => it.g.h)));
   const sceneW = Math.max(...rowW) + SIDE_PAD * K * 2;
-  const rowBoxH = rowH.map(h => padTop + h + floorH + labelH);
+  const rowBoxH = rowH.map(h => padTop + h + drop + floorH + labelH);
   const sceneH = rowBoxH.reduce((a, b) => a + b, 0);
 
   let g = '';
   let yCursor = 0;
   rows.forEach((row, ri) => {
     const baseline = yCursor + padTop + rowH[ri];
-    g += floorStrip(0, baseline, sceneW, floorH, S.floor);
+    g += floorStrip(0, baseline + drop, sceneW, floorH, S.floor);
     let x = (sceneW - rowW[ri]) / 2;
     for (const it of row) {
       const { g: q } = it;
       /* тень на плоскости — привязана к низу объекта, одинаково у всех */
-      g += `<ellipse cx="${r1(x + q.w / 2)}" cy="${r1(baseline + 3)}" rx="${r1(q.w * 0.46)}" ry="${r1(Math.max(3, q.w * 0.035))}" fill="#0B0C0D" opacity=".11"/>`;
+      g += `<ellipse cx="${r1(x + q.w / 2)}" cy="${r1(baseline + 3)}" rx="${r1(q.w * 0.46)}" ry="${r1(Math.min(drop * 0.35, Math.max(3, q.w * 0.035)))}" fill="#0B0C0D" opacity=".11"/>`;
       g += `<image href="${q.img}" x="${r1(x - q.ox)}" y="${r1(baseline - q.oy - q.h)}" width="${r1(q.cw)}" height="${r1(q.ch)}"/>`;
-      g += label(x + q.w / 2, baseline + floorH + labelH * 0.55, it.label, labelH * 0.42,
+      g += label(x + q.w / 2, baseline + drop + floorH + labelH * 0.55, it.label, labelH * 0.42,
                  'fill="#5D6467" text-anchor="middle"');
       x += q.w + gap;
     }
