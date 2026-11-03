@@ -119,13 +119,12 @@ section{padding:64px 0}
 .tabs .chip{font-size:11.5px;padding:5px 9px}
 .minis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:210px;overflow-y:auto;padding-right:4px}
 .mini{border:1px solid var(--line);background:linear-gradient(180deg,#EDEEEE,#FCFCFC);
-  aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;padding:4px;position:relative}
+  aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;padding:4px;position:relative;
+  min-width:0}  /* иначе ширина картинки распирает колонку 1fr и сетка вылезает за панель */
 .mini img{max-width:100%;max-height:100%;object-fit:contain}
 .mini span{position:absolute;top:2px;left:4px;font-family:var(--mono);font-size:9px;color:#666}
 .mini[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
-.fmins{grid-template-columns:repeat(3,1fr);max-height:220px}
-.fmini{aspect-ratio:3/2}
-.fnone,.smnone{font-family:var(--mono);font-size:9.5px;color:#5D6467;line-height:1.35;text-align:center}
+.smnone{font-family:var(--mono);font-size:9.5px;color:#5D6467;line-height:1.35;text-align:center}
 .smins{grid-template-columns:repeat(4,1fr);max-height:170px}
 .smini{aspect-ratio:1/1}
 .readout{padding:16px 18px;margin-top:auto;background:var(--raise);border-top:1px solid var(--line)}
@@ -145,12 +144,10 @@ section{padding:64px 0}
   .cfg{grid-template-columns:1fr}
   .panel{border-left:0;border-top:1px solid var(--line);max-height:none}
   .minis{grid-template-columns:repeat(7,1fr);max-height:208px}
-  .fmins{grid-template-columns:repeat(4,1fr);max-height:208px}
   .smins{grid-template-columns:repeat(7,1fr);max-height:150px}
 }
 @media (max-width:620px){
   .minis{grid-template-columns:repeat(5,1fr);max-height:188px}
-  .fmins{grid-template-columns:repeat(3,1fr);max-height:170px}
   .smins{grid-template-columns:repeat(5,1fr);max-height:130px}
   .mini span{font-size:8px;top:1px;left:3px}
   .hero h1{font-size:clamp(28px,8vw,40px)}
@@ -332,16 +329,14 @@ footer{border-top:1px solid var(--line);padding:26px 0 40px;color:var(--muted);f
     <div class="sec-head">
       <div><span class="eyebrow">Шаг 1 — соберите вид</span>
         <h2 style="margin-top:10px">Конфигуратор участка</h2></div>
-      <p>Выбранные памятник, ограда и малые формы стоят рядом на одной плоскости —
-         каждый отдельно, в едином масштабе по реальным размерам из прайса и каталога.
-         Ничего не перекрывает друг друга.</p>
+      <p>Памятник с цветником на участке: плита, вазы и лавка — по реальным
+         размерам из прайса и каталога. Ограждения смотрите в каталоге ниже.</p>
     </div>
 
     <div class="cfg">
       <div class="stage">
         <div class="plan-head">
-          <span class="stage-tag">Комплект · вид на плоскости</span>
-          <span class="stage-tag">единый масштаб</span>
+          <span class="stage-tag">Предпросмотр участка</span>
         </div>
         <div class="planwrap" id="scene"></div>
         <p class="stage-note" id="sceneNote"></p>
@@ -358,17 +353,6 @@ footer{border-top:1px solid var(--line);padding:26px 0 40px;color:var(--muted);f
             </span>
           </div>
           <div class="minis" id="minis" role="group" aria-label="Выбор модели памятника"></div>
-        </div>
-        <div class="pgroup">
-          <div class="ghead">
-            <span class="eyebrow">Ограждение</span>
-            <a class="ghead-link" href="#fencecat">все 36 →</a>
-          </div>
-          <div class="minis fmins" id="fences" role="group" aria-label="Выбор ограждения"></div>
-          <div id="coatRow" style="margin-top:11px">
-            <span class="eyebrow" style="margin-bottom:8px">Покрытие</span>
-            <div class="chips" id="coats" role="group" aria-label="Цвет покрытия"></div>
-          </div>
         </div>
         <div class="pgroup">
           <span class="eyebrow">Плита на могиле</span>
@@ -398,7 +382,6 @@ footer{border-top:1px solid var(--line);padding:26px 0 40px;color:var(--muted);f
             <div class="spec"><dt>Тумба</dt><dd id="oTumba">—</dd></div>
             <div class="spec"><dt>Цветник</dt><dd id="oCvet">—</dd></div>
             <div class="spec"><dt>Участок</dt><dd id="oPlot">—</dd></div>
-            <div class="spec"><dt>Ограда</dt><dd id="oFence">—</dd></div>
           </dl>
           <div class="price-row">
             <span class="price" id="oPrice">—</span>
