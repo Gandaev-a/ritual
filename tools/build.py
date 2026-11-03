@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Собирает index.html: шаблон + данные прайса + логика конфигуратора."""
-import json, pathlib
+import base64, json, pathlib, re
 root = pathlib.Path(__file__).resolve().parent.parent
 tpl  = (root / 'src/template.html').read_text(encoding='utf-8')
 app  = (root / 'src/app.js').read_text(encoding='utf-8')
@@ -11,6 +11,13 @@ html = tpl.replace('/*__DATA__*/', json.dumps(data, ensure_ascii=False, separato
 html = html.replace('/*__FENCES__*/', json.dumps(fences, ensure_ascii=False, separators=(',', ':')))
 html = html.replace('/*__SMALL__*/', json.dumps(small, ensure_ascii=False, separators=(',', ':')))
 html = html.replace('/*__APP__*/', app)
+# Шрифты встраиваются в страницу (data:), чтобы сайт не зависел от Google Fonts.
+def font_uri(m):
+    raw = (root / 'src/fonts' / m.group(1)).read_bytes()
+    return 'data:font/woff2;base64,' + base64.b64encode(raw).decode()
+fonts_css = re.sub(r'__FONT:([\w.-]+)__', font_uri, (root / 'src/fonts.css').read_text(encoding='utf-8'))
+assert '/*__FONTS__*/' in html
+html = html.replace('/*__FONTS__*/', fonts_css)
 # Артефакт оборачивает контент своим скелетом; GitHub Pages отдаёт файл как есть,
 # поэтому для сайта нужен полный документ с charset и viewport — без них телефон
 # рендерит страницу в виртуальном окне 980 px и медиазапросы не срабатывают.
